@@ -1,24 +1,38 @@
-import React from 'react';
-import {
-  List, ListItem, ListItemText, Paper, Typography
-} from '@mui/material';
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { getMyReports } from "../services/reportService";
 
-export default function ReportList({ reports }) {
-  if (!reports.length) {
-    return <Typography>No reports submitted yet.</Typography>;
-  }
+export default function ReportList({ refresh }) {
+  const { user } = useAuth();
+  const [reports, setReports] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      getMyReports(user.id)
+        .then(setReports)
+        .catch(err => setError(err.message));
+    }
+  }, [user, refresh]);
+
+  if (error) return <div>{error}</div>;
+  if (!reports.length) return <div>Hiç rapor yok.</div>;
+
   return (
-    <Paper sx={{ p: 2 }}>
-      <List>
-        {reports.map((r) => (
-          <ListItem key={r.id} divider>
-            <ListItemText
-              primary={r.title}
-              secondary={`${r.description} — ${r.date}`}
-            />
-          </ListItem>
-        ))}
-      </List>
-    </Paper>
+    <ul>
+      {reports.map(report => (
+        <li key={report.id}>
+          <a
+            href={`https://uliivtyxnrslopoanavm.supabase.co/storage/v1/object/public/reports/${report.file_path}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {report.file_path.split("/").pop()}
+          </a>
+          {" - "}
+          {report.notes}
+        </li>
+      ))}
+    </ul>
   );
 } 

@@ -1,63 +1,75 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { login as apiLogin, register as apiRegister, setAuthToken } from '../services/api';
-import axios from 'axios';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "../services/supabaseClient";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [profileInserted, setProfileInserted] = useState(false);
 
-  // On mount, check for token in localStorage
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    if (token && userData) {
-      setAuthToken(token);
-      setUser(JSON.parse(userData));
-    }
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+    supabase.auth.getUser().then(({ data }) => setUser(data?.user ?? null));
+    return () => listener?.subscription.unsubscribe();
   }, []);
 
-  const login = async ({ email, password }) => {
-    const { token, user } = await apiLogin({ email, password });
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setAuthToken(token);
-    setUser(user);
-  };
-
-  const register = async ({ email, password, firstName, lastName }) => {
-    const { token, user } = await apiRegister({ email, password, firstName, lastName });
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setAuthToken(token);
-    setUser(user);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setAuthToken(null);
-    setUser(null);
-  };
-
-  const isAuthenticated = !!user;
-
-  // Axios interceptor to always send token
+  // Kullanıcı giriş yaptıktan sonra kendi users tablosuna ekle
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    setAuthToken(token);
-    const interceptor = axios.interceptors.request.use(
-      (config) => {
-        if (token) config.headers.Authorization = `Bearer ${token}`;
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-    return () => axios.interceptors.request.eject(interceptor);
-  }, [user]);
+    if (user && !profileInserted) {
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
+      supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .then(({ data, error }) => {
+          if (!data || data.length === 0) {
+            supabase.from('users').insert([{
+              id: user.id,
+              email: user.email,
+              first_name: firstName,
+              last_name: lastName
+            }]).then(() => {
+              setProfileInserted(true);
+            });
+          } else {
+            setProfileInserted(true);
+          }
+        });
+    }
+  }, [user, profileInserted]);
+
+  // Kayıt sırasında ad/soyadı metadata ile kaydet
+  const signUp = async (email, password, firstName, lastName) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName
+        }
+      }
+    });
+    if (error) throw error;
+  };
+
+  const signIn = async (email, password) => {
+    setProfileInserted(false);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfileInserted(false);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, register, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

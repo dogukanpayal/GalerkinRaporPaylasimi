@@ -1,57 +1,36 @@
-import React, { useState } from 'react';
-import {
-  Box, TextField, Button, Typography, Input
-} from '@mui/material';
+import React, { useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { uploadReport } from "../services/reportService";
 
-export default function ReportForm({ onSubmit }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+export default function ReportForm({ onUpload }) {
+  const { user } = useAuth();
   const [file, setFile] = useState(null);
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !description) return;
-    onSubmit({ title, description, file });
-    setTitle('');
-    setDescription('');
-    setFile(null);
+    setError("");
+    try {
+      await uploadReport(file, notes, user.id);
+      setFile(null);
+      setNotes("");
+      if (onUpload) onUpload();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ p: 2, boxShadow: 1, borderRadius: 1 }}>
-      <Typography variant="h6" gutterBottom>
-        Submit New Report
-      </Typography>
-      <TextField
-        label="Title"
-        fullWidth
-        margin="normal"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        required
+    <form onSubmit={handleSubmit}>
+      <input type="file" onChange={e => setFile(e.target.files[0])} required />
+      <textarea
+        placeholder="Notlar"
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
       />
-      <TextField
-        label="Description"
-        fullWidth
-        margin="normal"
-        multiline
-        minRows={3}
-        value={description}
-        onChange={e => setDescription(e.target.value)}
-        required
-      />
-      <Input
-        type="file"
-        onChange={e => setFile(e.target.files[0])}
-        sx={{ mt: 2 }}
-      />
-      <Button
-        type="submit"
-        variant="contained"
-        sx={{ mt: 2 }}
-      >
-        Submit
-      </Button>
-    </Box>
+      <button type="submit">Rapor Yükle</button>
+      {error && <div>{error}</div>}
+    </form>
   );
 } 

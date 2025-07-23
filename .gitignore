@@ -1,0 +1,11 @@
+# Node modülleri
+frontend/node_modules/
+
+# Derleme / cache
+frontend/node_modules/.cache/
+
+# Ortam değişkenleri
+.env
+
+# VSCode ayarları
+.vscode/
