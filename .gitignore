@@ -9,3 +9,11 @@ frontend/node_modules/.cache/
 
 # VSCode ayarları
 .vscode/
+
+node_modules/
+frontend/node_modules/
+
+# Derleme / cache
+frontend/node_modules/.cache/
+node_modules
+node_modules

@@ -1,239 +1,257 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, Chip, Typography, TextField, Select, MenuItem, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Box
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Typography,
+  Chip,
+  Box,
+  TextField,
+  MenuItem
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import UndoIcon from '@mui/icons-material/Undo';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import { 
+  Visibility as VisibilityIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon
+} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { deleteReport, updateReport, updateReportStatus } from '../services/reportService';
 import { supabase } from '../services/supabaseClient';
+import { deleteReport, updateReport, updateReportStatus, getAllUsers } from '../services/reportService';
+import { formatInTimeZone } from 'date-fns-tz';
 
-function DownloadLink({ filePath }) {
-  const [signedUrl, setSignedUrl] = useState(null);
+// Durum renkleri
+const statusColors = {
+  'Submitted': 'info',
+  'In Review': 'warning',
+  'Approved': 'success',
+  'Rejected': 'error'
+};
+
+// Rapor Detay Modal Bileşeni
+function ReportDetailModal({ open, onClose, report }) {
+  const [downloadUrl, setDownloadUrl] = useState('');
+
   React.useEffect(() => {
-    let isMounted = true;
-    async function fetchUrl() {
-      const { data, error } = await supabase
-        .storage
+    if (report && open) {
+      supabase.storage
         .from('reports')
-        .createSignedUrl(filePath, 60);
-      if (isMounted && data?.signedUrl) setSignedUrl(data.signedUrl);
+        .createSignedUrl(report.file_path, 60)
+        .then(({ data }) => setDownloadUrl(data?.signedUrl));
     }
-    fetchUrl();
-    return () => { isMounted = false; };
-  }, [filePath]);
-  if (!signedUrl) return <span>...</span>;
-  return (
-    <a href={signedUrl} target="_blank" rel="noopener noreferrer">
-      {filePath.split('/').pop()}
-    </a>
-  );
-}
+  }, [report, open]);
 
-function ReportDetailModal({ open, report, onClose }) {
-  const [signedUrl, setSignedUrl] = useState(null);
-  React.useEffect(() => {
-    if (report?.file_path) {
-      supabase.storage.from('reports').createSignedUrl(report.file_path, 60)
-        .then(({ data }) => setSignedUrl(data?.signedUrl));
-    }
-  }, [report]);
   if (!report) return null;
+
+  const fullName = report.notes ? report.notes.split(' ')[0] : 'Bilinmiyor';
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Rapor Detayı</DialogTitle>
-      <DialogContent dividers>
-        <Box mb={2}>
-          <Typography variant="h6">Notlar:</Typography>
-          <Typography variant="body1" style={{ whiteSpace: 'pre-wrap' }}>
-            {report.notes || 'Not yok.'}
-          </Typography>
-        </Box>
-        <Box>
-          <Typography variant="h6">Dosya:</Typography>
-          {signedUrl ? (
-            <a href={signedUrl} target="_blank" rel="noopener noreferrer">
-              {report.file_path.split('/').pop()}
-            </a>
-          ) : '...'}
-        </Box>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Rapor Detayları</DialogTitle>
+      <DialogContent>
+        <Typography variant="subtitle1" gutterBottom>
+          <strong>Çalışan:</strong> {report.user ? `${report.user.first_name} ${report.user.last_name}` : 'Bilinmiyor'}
+        </Typography>
+        <Typography variant="subtitle1" gutterBottom>
+          <strong>Tarih:</strong> {new Date(report.created_at).toLocaleString('tr-TR')}
+        </Typography>
+        <Typography variant="subtitle1" gutterBottom>
+          <strong>Durum:</strong> <Chip label={report.status} color={statusColors[report.status]} size="small" />
+        </Typography>
+        <Typography variant="subtitle1" gutterBottom>
+          <strong>Notlar:</strong> {report.notes || 'Not eklenmemiş'}
+        </Typography>
+        {downloadUrl && (
+          <Button
+            variant="contained"
+            color="primary"
+            href={downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginTop: 16 }}
+          >
+            Raporu İndir
+          </Button>
+        )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} color="secondary">Kapat</Button>
+        <Button onClick={onClose}>Kapat</Button>
       </DialogActions>
     </Dialog>
   );
 }
 
-function EditReportModal({ open, report, onClose, onSave }) {
-  const [notes, setNotes] = useState(report?.notes || '');
-  React.useEffect(() => {
-    setNotes(report?.notes || '');
-  }, [report]);
-  if (!report) return null;
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Notu Düzenle</DialogTitle>
-      <DialogContent dividers>
-        <TextField
-          label="Notlar"
-          multiline
-          rows={4}
-          fullWidth
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} color="secondary">İptal</Button>
-        <Button onClick={() => onSave(report.id, notes)} variant="contained" color="primary">Kaydet</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-const statusOptions = ['Submitted', 'Reviewed'];
-
-export default function ReportsTable({ reports, loading, fetchReports, userList }) {
+export default function ReportsTable({ reports = [], filters, setFilters, onReportUpdated }) {
   const { user } = useAuth();
-  const [error, setError] = useState('');
-  const [filters, setFilters] = useState({ date: '', status: '', userId: '' });
   const [selectedReport, setSelectedReport] = useState(null);
-  const [editingReport, setEditingReport] = useState(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [users, setUsers] = useState([]);
 
-  const filteredReports = useMemo(() => {
-    return reports.filter(r => {
-      const dateMatch = !filters.date || (r.date && r.date.startsWith(filters.date));
-      const statusMatch = !filters.status || r.status === filters.status;
-      const userMatch = !filters.userId || r.user_id === filters.userId;
-      return dateMatch && statusMatch && userMatch;
-    });
-  }, [reports, filters]);
-
-  const handleDelete = async (reportId) => {
-    if (window.confirm('Bu raporu silmek istediğine emin misin?')) {
+  // Kullanıcıları yükle
+  useEffect(() => {
+    const loadUsers = async () => {
       try {
-        await deleteReport(reportId);
-        if (fetchReports) fetchReports();
-      } catch (err) {
-        setError('Silme işlemi başarısız.');
+        const userData = await getAllUsers();
+        setUsers(userData);
+      } catch (error) {
+        console.error('Error loading users:', error);
       }
-    }
-  };
-
-  const handleUpdate = async (reportId, newNotes) => {
-    try {
-      await updateReport(reportId, { notes: newNotes });
-      setEditingReport(null);
-      if (fetchReports) fetchReports();
-    } catch (err) {
-      setError('Not güncelleme başarısız.');
-    }
-  };
+    };
+    loadUsers();
+  }, []);
 
   const handleStatusChange = async (reportId, newStatus) => {
     try {
       await updateReportStatus(reportId, newStatus);
-      if (fetchReports) fetchReports();
-    } catch (err) {
-      setError('Durum güncelleme başarısız.');
+      onReportUpdated();
+    } catch (error) {
+      console.error('Status güncelleme hatası:', error);
+      alert('Durum güncellenirken bir hata oluştu');
     }
   };
 
-  if (loading) return <Typography sx={{ p: 2 }}>Yükleniyor...</Typography>;
-  if (error) return <Typography color="error" sx={{ p: 2 }}>{error}</Typography>;
-  if (!filteredReports.length) return <Typography sx={{ p: 2 }}>Hiç rapor yok.</Typography>;
+  const handleDelete = async (reportId) => {
+    if (window.confirm('Bu raporu silmek istediğinizden emin misiniz?')) {
+      try {
+        await deleteReport(reportId);
+        onReportUpdated();
+      } catch (error) {
+        console.error('Silme hatası:', error);
+        alert('Rapor silinirken bir hata oluştu');
+      }
+    }
+  };
+
+  // Filtreli raporlar
+  const filteredReports = reports.filter(report => {
+    const dateMatch = !filters?.date || new Date(report.created_at).toISOString().split('T')[0] === filters.date;
+    const statusMatch = !filters?.status || report.status === filters.status;
+    const userMatch = !filters?.userId || report.user_id === filters.userId;
+    return dateMatch && statusMatch && userMatch;
+  });
 
   return (
-    <Paper sx={{ mt: 3, overflow: 'hidden' }}>
-      <Box sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+    <>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <TextField
-          label="Filter by Date"
+          label="Tarihe Göre Filtrele"
           type="date"
-          name="date"
-          value={filters.date}
+          value={filters?.date || ''}
           onChange={e => setFilters(f => ({ ...f, date: e.target.value }))}
           InputLabelProps={{ shrink: true }}
-          sx={{ width: 200 }}
+          size="small"
         />
         <TextField
           select
-          label="Status"
-          name="status"
-          value={filters.status}
+          label="Durum"
+          value={filters?.status || ''}
           onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-          sx={{ width: 150 }}
+          size="small"
+          sx={{ minWidth: 120 }}
         >
-          <MenuItem value=""><em>Hepsi</em></MenuItem>
-          {statusOptions.map(option => (
-            <MenuItem key={option} value={option}>{option}</MenuItem>
+          <MenuItem value="">Tümü</MenuItem>
+          <MenuItem value="Submitted">Gönderildi</MenuItem>
+          <MenuItem value="Reviewed">İncelendi</MenuItem>
+          <MenuItem value="Approved">Onaylandı</MenuItem>
+        </TextField>
+        <TextField
+          select
+          label="Çalışan"
+          value={filters?.userId || ''}
+          onChange={e => setFilters(f => ({ ...f, userId: e.target.value }))}
+          size="small"
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">Tüm Çalışanlar</MenuItem>
+          {users.map(user => (
+            <MenuItem key={user.id} value={user.id}>
+              {user.first_name} {user.last_name}
+            </MenuItem>
           ))}
         </TextField>
-        {userList && (
-          <TextField
-            select
-            label="Employee"
-            name="userId"
-            value={filters.userId}
-            onChange={e => setFilters(f => ({ ...f, userId: e.target.value }))}
-            sx={{ width: 200 }}
-          >
-            <MenuItem value=""><em>Hepsi</em></MenuItem>
-            {userList.map(u => (
-              <MenuItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</MenuItem>
-            ))}
-          </TextField>
-        )}
       </Box>
-      <TableContainer>
-        <Table stickyHeader>
+
+      <TableContainer component={Paper}>
+        <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Çalışan</TableCell>
-              <TableCell>Tarih</TableCell>
-              <TableCell>Notlar</TableCell>
-              <TableCell>Dosya</TableCell>
-              <TableCell>Durum</TableCell>
-              <TableCell>Görüntüle</TableCell>
-              <TableCell>Aksiyon</TableCell>
+              <TableCell><strong>Çalışan</strong></TableCell>
+              <TableCell><strong>Tarih/Saat</strong></TableCell>
+              <TableCell><strong>Durum</strong></TableCell>
+              <TableCell align="right"><strong>İşlemler</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredReports.map((r) => (
-              <TableRow hover key={r.id}>
-                <TableCell>{r.user?.first_name || ''} {r.user?.last_name || ''}</TableCell>
-                <TableCell>{r.date || (r.created_at ? new Date(r.created_at).toLocaleString() : '')}</TableCell>
-                <TableCell>{r.notes}</TableCell>
-                <TableCell><DownloadLink filePath={r.file_path} /></TableCell>
-                <TableCell><Chip label={r.status} size="small" /></TableCell>
-                <TableCell>
-                  <IconButton onClick={() => setSelectedReport(r)}><VisibilityIcon /></IconButton>
-                </TableCell>
-                <TableCell>
-                  {(user.id === r.user_id) && (
-                    <>
-                      <IconButton onClick={() => setEditingReport(r)}><EditIcon /></IconButton>
-                      <IconButton onClick={() => handleDelete(r.id)}><DeleteIcon /></IconButton>
-                    </>
-                  )}
-                  {user.role === 'manager' && r.status === 'Submitted' && (
-                    <IconButton onClick={() => handleStatusChange(r.id, 'Reviewed')} title="Reviewed yap"><CheckCircleOutlineIcon /></IconButton>
-                  )}
-                  {user.role === 'manager' && r.status === 'Reviewed' && (
-                    <IconButton onClick={() => handleStatusChange(r.id, 'Submitted')} title="Submitted yap"><UndoIcon /></IconButton>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {filteredReports.map((report) => {
+              console.log('Rendering report:', report);
+              return (
+                <TableRow key={report.id}>
+                  <TableCell>
+                    {report.user ? `${report.user.first_name} ${report.user.last_name}` : 'Bilinmiyor'}
+                  </TableCell>
+                  <TableCell>
+                    {new Date(report.created_at).toLocaleString('tr-TR')}
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={report.status} 
+                      color={statusColors[report.status]} 
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton
+                      onClick={() => {
+                        console.log('Opening report details:', report);
+                        setSelectedReport(report);
+                        setDetailModalOpen(true);
+                      }}
+                    >
+                      <VisibilityIcon />
+                    </IconButton>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color={report.status === 'Approved' ? 'success' : 'primary'}
+                      onClick={() => handleStatusChange(
+                        report.id,
+                        report.status === 'Approved' ? 'In Review' : 'Approved'
+                      )}
+                      style={{ marginLeft: 8 }}
+                    >
+                      {report.status === 'Approved' ? 'Onayı Kaldır' : 'Onayla'}
+                    </Button>
+                    <IconButton
+                      onClick={() => handleDelete(report.id)}
+                      color="error"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
-      <ReportDetailModal open={!!selectedReport} report={selectedReport} onClose={() => setSelectedReport(null)} />
-      <EditReportModal open={!!editingReport} report={editingReport} onClose={() => setEditingReport(null)} onSave={handleUpdate} />
-    </Paper>
+
+      <ReportDetailModal
+        open={detailModalOpen}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setSelectedReport(null);
+        }}
+        report={selectedReport}
+      />
+    </>
   );
 }
