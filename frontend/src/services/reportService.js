@@ -1,56 +1,28 @@
 import { supabase } from "./supabaseClient";
 
-export async function getAllReports(filters = {}) {
-  console.log('Fetching all reports with filters:', filters);
+export async function getAllReports() {
   try {
-    // Önce kullanıcıları çekelim
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('*');
-
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
-      throw usersError;
-    }
-
-    // Kullanıcıları ID'lerine göre map'leyelim
-    const userMap = users.reduce((acc, user) => {
-      acc[user.id] = user;
-      return acc;
-    }, {});
-
-    // Raporları çekelim
-    let query = supabase
+    console.log('Fetching all reports from Supabase...');
+    const { data, error } = await supabase
       .from('reports')
-      .select('*');
+      .select(`
+        *,
+        user:users (
+          id,
+          first_name,
+          last_name,
+          email
+        )
+      `)
+      .order('created_at', { ascending: false });
 
-    if (filters.date) {
-      query = query.eq('date', filters.date);
-    }
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
-    if (filters.userId) {
-      query = query.eq('user_id', filters.userId);
-    }
-
-    query = query.order('created_at', { ascending: false });
-
-    const { data: reports, error: reportsError } = await query;
-
-    if (reportsError) {
-      console.error('Error fetching reports:', reportsError);
-      throw reportsError;
+    if (error) {
+      console.error('Error fetching reports:', error);
+      throw error;
     }
 
-    // Her rapora kullanıcı bilgisini ekleyelim
-    const reportsWithUsers = reports.map(report => ({
-      ...report,
-      user: report.user_id ? userMap[report.user_id] : null
-    }));
-
-    console.log('Fetched reports:', reportsWithUsers);
-    return reportsWithUsers;
+    console.log('Fetched reports with user data:', data);
+    return data || [];
   } catch (error) {
     console.error('Error in getAllReports:', error);
     throw error;
@@ -58,23 +30,16 @@ export async function getAllReports(filters = {}) {
 }
 
 export async function uploadReport(file, notes, userId) {
-  console.log("Uploading report for user:", userId);
-  
   try {
-    // Kullanıcı bilgilerini kontrol et
-    const { data: userData, error: userError } = await supabase
+    // Kullanıcı bilgilerini al
+    const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
 
     if (userError) {
-      console.error("User fetch error:", userError);
       throw userError;
-    }
-
-    if (!userData) {
-      throw new Error(`User not found with ID: ${userId}`);
     }
 
     // Benzersiz dosya adı oluştur
@@ -82,41 +47,38 @@ export async function uploadReport(file, notes, userId) {
     const filePath = `user_${userId}/${uniqueName}`;
 
     // Dosyayı yükle
-    const { data: fileData, error: fileError } = await supabase.storage
+    const { error: fileError } = await supabase.storage
       .from("reports")
       .upload(filePath, file);
 
     if (fileError) {
-      console.error("File upload error:", fileError);
       throw fileError;
     }
 
     // Rapor kaydını oluştur
-    const { data: reportData, error: reportError } = await supabase
+    const { data: report, error: reportError } = await supabase
       .from("reports")
       .insert([
         {
           user_id: userId,
           file_path: filePath,
-          notes: notes || `${userData.first_name} ${userData.last_name}`,
+          notes: notes || `${user.first_name} ${user.last_name}`,
           status: "Submitted",
           date: new Date().toISOString().split("T")[0],
+          uploader_first_name: user.first_name,
+          uploader_last_name: user.last_name
         }
       ])
       .select()
       .single();
 
     if (reportError) {
-      console.error("Report creation error:", reportError);
       throw reportError;
     }
 
-    return {
-      ...reportData,
-      user: userData
-    };
+    return report;
   } catch (error) {
-    console.error("Upload process error:", error);
+    console.error('Error in uploadReport:', error);
     throw error;
   }
 }
@@ -127,47 +89,16 @@ export async function updateReportStatus(reportId, status) {
       .from("reports")
       .update({ status })
       .eq("id", reportId)
-      .select(`
-        *,
-        users!reports_user_id_fkey (
-          id,
-          first_name,
-          last_name,
-          email
-        )
-      `)
+      .select()
       .single();
 
     if (error) {
-      console.error('Error updating report status:', error);
       throw error;
     }
 
-    return {
-      ...data,
-      user: data.users
-    };
+    return data;
   } catch (error) {
     console.error('Error in updateReportStatus:', error);
-    throw error;
-  }
-}
-
-export async function getAllUsers() {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, first_name, last_name, email')
-      .order('first_name', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching users:', error);
-      throw error;
-    }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error in getAllUsers:', error);
     throw error;
   }
 }
@@ -182,7 +113,6 @@ export async function deleteReport(reportId) {
       .single();
 
     if (fetchError) {
-      console.error("Error fetching report:", fetchError);
       throw fetchError;
     }
 
@@ -193,7 +123,7 @@ export async function deleteReport(reportId) {
         .remove([report.file_path]);
 
       if (storageError) {
-        console.error("Error deleting file:", storageError);
+        console.error('Error deleting file:', storageError);
       }
     }
 
@@ -204,11 +134,28 @@ export async function deleteReport(reportId) {
       .eq("id", reportId);
 
     if (deleteError) {
-      console.error("Error deleting report:", deleteError);
       throw deleteError;
     }
   } catch (error) {
-    console.error("Delete operation failed:", error);
+    console.error('Error in deleteReport:', error);
+    throw error;
+  }
+}
+
+export async function getAllUsers() {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, first_name, last_name, email')
+      .order('first_name', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllUsers:', error);
     throw error;
   }
 } 
