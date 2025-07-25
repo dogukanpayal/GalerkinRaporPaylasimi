@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import MainLayout from './components/MainLayout';
 import { useAuth } from './contexts/AuthContext';
+import MyReportsPage from './pages/MyReportsPage';
 
 function ProtectedRoutes() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export default function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoutes />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/my-reports" element={<MyReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" />} />

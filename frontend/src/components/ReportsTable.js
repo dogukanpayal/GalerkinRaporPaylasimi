@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Table, TableBody, TableCell, TableContainer, TableHead, 
   TableRow, Paper, Button, IconButton, Dialog, DialogTitle, 
   DialogContent, DialogActions, Typography, Chip, Box,
@@ -22,7 +22,7 @@ function parseUTCDate(dateString) {
   return new Date(dateString);
 }
 
-export default function ReportsTable({ reports = [], filters, setFilters, onReportUpdated, allReports = reports }) {
+export default function ReportsTable({ reports = [], filters, setFilters, onReportUpdated, allReports = reports, hideUploaderFilter }) {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [uniqueUploaders, setUniqueUploaders] = useState([]);
@@ -82,6 +82,16 @@ export default function ReportsTable({ reports = [], filters, setFilters, onRepo
     }
   };
 
+  // Filtreleme işlemini burada yap
+  const filteredReports = reports.filter(report => {
+    const dateMatch = !filters.date || new Date(report.created_at).toISOString().split('T')[0] === filters.date;
+    const statusMatch = !filters.status || report.status === filters.status;
+    const uploaderMatch = !filters.uploaderId || 
+      (report.uploader_first_name && report.uploader_last_name && 
+       `${report.uploader_first_name}-${report.uploader_last_name}` === filters.uploaderId);
+    return dateMatch && statusMatch && uploaderMatch;
+  });
+
   return (
     <>
       <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -103,21 +113,23 @@ export default function ReportsTable({ reports = [], filters, setFilters, onRepo
           <MenuItem value="Not Reviewed">İncelenmedi</MenuItem>
           <MenuItem value="Reviewed">İncelendi</MenuItem>
         </TextField>
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel>Çalışan</InputLabel>
-          <Select
-            value={filters.uploaderId || ''}
-            label="Çalışan"
-            onChange={(e) => handleFilterChange('uploaderId', e.target.value)}
-          >
-            <MenuItem value="">Tüm Çalışanlar</MenuItem>
-            {uniqueUploaders.map((uploader) => (
-              <MenuItem key={uploader.id} value={uploader.id}>
-                {uploader.fullName}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        {!hideUploaderFilter && (
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel>Çalışan</InputLabel>
+            <Select
+              value={filters.uploaderId || ''}
+              label="Çalışan"
+              onChange={(e) => handleFilterChange('uploaderId', e.target.value)}
+            >
+              <MenuItem value="">Tüm Çalışanlar</MenuItem>
+              {uniqueUploaders.map((uploader) => (
+                <MenuItem key={uploader.id} value={uploader.id}>
+                  {uploader.fullName}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
       </Box>
 
       <TableContainer component={Paper}>
@@ -131,52 +143,52 @@ export default function ReportsTable({ reports = [], filters, setFilters, onRepo
             </TableRow>
           </TableHead>
           <TableBody>
-            {reports.map((report) => (
-              <TableRow key={report.id}>
-                <TableCell>
+            {filteredReports.map((report) => (
+                <TableRow key={report.id}>
+                  <TableCell>
                   {report.uploader_first_name && report.uploader_last_name 
                     ? `${report.uploader_first_name} ${report.uploader_last_name}`
                     : 'Bilinmeyen Kullanıcı'}
-                </TableCell>
-                <TableCell>
+                  </TableCell>
+                  <TableCell>
                   {parseUTCDate(report.created_at).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
-                </TableCell>
-                <TableCell>
-                  <Chip
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
                     label={report.status === 'Reviewed' ? 'İncelendi' : 'İncelenmedi'}
                     color={report.status === 'Reviewed' ? 'success' : 'primary'}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton
-                    onClick={() => {
-                      setSelectedReport(report);
-                      setDetailModalOpen(true);
-                    }}
-                  >
-                    <VisibilityIcon />
-                  </IconButton>
-                  <Button
-                    size="small"
-                    variant="outlined"
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton
+                      onClick={() => {
+                        setSelectedReport(report);
+                        setDetailModalOpen(true);
+                      }}
+                    >
+                      <VisibilityIcon />
+                    </IconButton>
+                      <Button
+                        size="small"
+                        variant="outlined"
                     color={report.status === 'Reviewed' ? 'success' : 'primary'}
-                    onClick={() => handleStatusChange(
-                      report.id,
+                        onClick={() => handleStatusChange(
+                          report.id,
                       report.status === 'Reviewed' ? 'Not Reviewed' : 'Reviewed'
-                    )}
-                    style={{ marginLeft: 8 }}
-                  >
+                        )}
+                        style={{ marginLeft: 8 }}
+                      >
                     {report.status === 'Reviewed' ? 'İncelenmedi Yap' : 'İncelendi Yap'}
-                  </Button>
-                  <IconButton
-                    onClick={() => handleDelete(report.id)}
-                    color="error"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
+                      </Button>
+                      <IconButton
+                        onClick={() => handleDelete(report.id)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                  </TableCell>
+                </TableRow>
             ))}
           </TableBody>
         </Table>

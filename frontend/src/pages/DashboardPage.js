@@ -78,7 +78,7 @@ export default function DashboardPage() {
         <Grid item xs={12}>
           <UploadReportCard onUploadSuccess={handleUploadSuccess} />
         </Grid>
-        
+
         <Grid item xs={12}>
           {loading ? (
             <Typography>Yükleniyor...</Typography>
