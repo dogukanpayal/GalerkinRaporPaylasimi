@@ -21,14 +21,14 @@ export default function ReportTable({ reports, filters, setFilters }) {
           InputLabelProps={{ shrink: true }}
         />
         <TextField
-          label="Filter by Employee"
-          name="employee"
-          value={filters.employee}
+          label="Çalışana Göre Filtrele"
+          name="calisan"
+          value={filters.calisan}
           onChange={handleChange}
         />
         <Button
           variant="outlined"
-          onClick={() => setFilters({ date: '', employee: '' })}
+          onClick={() => setFilters({ date: '', calisan: '' })}
         >
           Clear
         </Button>
@@ -37,7 +37,7 @@ export default function ReportTable({ reports, filters, setFilters }) {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Employee</TableCell>
+              <TableCell>Çalışan</TableCell>
               <TableCell>Title</TableCell>
               <TableCell>Description</TableCell>
               <TableCell>Date</TableCell>
@@ -46,7 +46,7 @@ export default function ReportTable({ reports, filters, setFilters }) {
           <TableBody>
             {reports.map((r) => (
               <TableRow key={r.id}>
-                <TableCell>{r.employee}</TableCell>
+                <TableCell>{r.calisan}</TableCell>
                 <TableCell>{r.title}</TableCell>
                 <TableCell>{r.description}</TableCell>
                 <TableCell>{r.date}</TableCell>

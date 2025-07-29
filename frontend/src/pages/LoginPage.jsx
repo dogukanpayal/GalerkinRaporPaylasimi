@@ -56,10 +56,6 @@ export default function LoginPage() {
             Giriş Yap
           </Button>
         </form>
-        <Button onClick={() => navigate('/register')} fullWidth sx={{ mt: 1 }}>
-          Hesabın yok mu? Kayıt Ol
-        </Button>
-        <p>Aktif kullanıcı: {user ? user.email : "Yok"}</p>
       </Box>
     </Container>
   );

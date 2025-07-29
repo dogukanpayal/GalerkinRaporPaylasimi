@@ -5,7 +5,7 @@ import { getAllReports } from '../services/api';
 
 export default function ManagerDashboard() {
   const [reports, setReports] = useState([]);
-  const [filters, setFilters] = useState({ date: '', employee: '' });
+  const [filters, setFilters] = useState({ date: '', calisan: '' });
 
   useEffect(() => {
     getAllReports(filters).then(setReports);
@@ -14,7 +14,7 @@ export default function ManagerDashboard() {
   return (
     <Container>
       <Typography variant="h4" sx={{ mt: 4, mb: 2 }}>
-        All Employee Reports
+        Tüm Çalışan Raporları
       </Typography>
       <Box sx={{ mb: 2 }}>
         <ReportTable

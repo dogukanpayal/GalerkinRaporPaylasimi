@@ -42,20 +42,6 @@ export function AuthProvider({ children }) {
   }, [user, profileInserted]);
 
   // Kayıt sırasında ad/soyadı metadata ile kaydet
-  const signUp = async (email, password, firstName, lastName) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName
-        }
-      }
-    });
-    if (error) throw error;
-  };
-
   const signIn = async (email, password) => {
     setProfileInserted(false);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -69,7 +55,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

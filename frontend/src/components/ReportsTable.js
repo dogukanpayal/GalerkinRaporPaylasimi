@@ -8,6 +8,7 @@ import {
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 const statusColors = {
   'Not Reviewed': 'warning',
@@ -23,9 +24,32 @@ function parseUTCDate(dateString) {
 }
 
 export default function ReportsTable({ reports = [], filters, setFilters, onReportUpdated, allReports = reports, hideUploaderFilter }) {
+  const { user } = useAuth();
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [uniqueUploaders, setUniqueUploaders] = useState([]);
+  const [userRole, setUserRole] = useState(null);
+
+  // Kullanıcının rolünü al
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        if (!error && data) {
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+      }
+    }
+    fetchUserRole();
+  }, [user]);
 
   // Benzersiz yükleyicileri TÜM raporlardan al (filtrelenmemiş)
   useEffect(() => {
@@ -169,24 +193,27 @@ export default function ReportsTable({ reports = [], filters, setFilters, onRepo
                     >
                       <VisibilityIcon />
                     </IconButton>
+                    {/* Sadece yöneticiler durum değiştirme butonunu görebilir */}
+                    {userRole === 'Yonetici' && (
                       <Button
                         size="small"
                         variant="outlined"
-                    color={report.status === 'Reviewed' ? 'success' : 'primary'}
+                        color={report.status === 'Reviewed' ? 'success' : 'primary'}
                         onClick={() => handleStatusChange(
                           report.id,
-                      report.status === 'Reviewed' ? 'Not Reviewed' : 'Reviewed'
+                          report.status === 'Reviewed' ? 'Not Reviewed' : 'Reviewed'
                         )}
                         style={{ marginLeft: 8 }}
                       >
-                    {report.status === 'Reviewed' ? 'İncelenmedi Yap' : 'İncelendi Yap'}
+                        {report.status === 'Reviewed' ? 'İncelenmedi Yap' : 'İncelendi Yap'}
                       </Button>
-                      <IconButton
-                        onClick={() => handleDelete(report.id)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                    )}
+                    <IconButton
+                      onClick={() => handleDelete(report.id)}
+                      color="error"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
             ))}
