@@ -3,7 +3,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, 
   TableRow, Paper, Button, IconButton, Dialog, DialogTitle, 
   DialogContent, DialogActions, Typography, Chip, Box,
-  TextField, MenuItem, Select, FormControl, InputLabel
+  TextField, MenuItem, Select, FormControl, InputLabel, Card
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -118,148 +118,281 @@ export default function ReportsTable({ reports = [], filters, setFilters, onRepo
 
   return (
     <>
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <TextField
-          type="date"
-          label="Tarihe Göre Filtrele"
-          value={filters.date || ''}
-          onChange={(e) => handleFilterChange('date', e.target.value)}
-          InputLabelProps={{ shrink: true }}
-        />
-        <TextField
-          select
-          label="Durum"
-          value={filters.status || ''}
-          onChange={(e) => handleFilterChange('status', e.target.value)}
-          sx={{ minWidth: 120 }}
-        >
-          <MenuItem value="">Tüm Durumlar</MenuItem>
-          <MenuItem value="Not Reviewed">İncelenmedi</MenuItem>
-          <MenuItem value="Reviewed">İncelendi</MenuItem>
-        </TextField>
-        {!hideUploaderFilter && (
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>Çalışan</InputLabel>
-            <Select
-              value={filters.uploaderId || ''}
-              label="Çalışan"
-              onChange={(e) => handleFilterChange('uploaderId', e.target.value)}
-            >
-              <MenuItem value="">Tüm Çalışanlar</MenuItem>
-              {uniqueUploaders.map((uploader) => (
-                <MenuItem key={uploader.id} value={uploader.id}>
-                  {uploader.fullName}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-      </Box>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell><strong>Çalışan</strong></TableCell>
-              <TableCell><strong>Tarih/Saat</strong></TableCell>
-              <TableCell><strong>Durum</strong></TableCell>
-              <TableCell align="right"><strong>İşlemler</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredReports.map((report) => (
-                <TableRow key={report.id}>
-                  <TableCell>
-                  {report.uploader_first_name && report.uploader_last_name 
-                    ? `${report.uploader_first_name} ${report.uploader_last_name}`
-                    : 'Bilinmeyen Kullanıcı'}
-                  </TableCell>
-                  <TableCell>
-                  {parseUTCDate(report.created_at).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                    label={report.status === 'Reviewed' ? 'İncelendi' : 'İncelenmedi'}
-                    color={report.status === 'Reviewed' ? 'success' : 'primary'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      onClick={() => {
-                        setSelectedReport(report);
-                        setDetailModalOpen(true);
-                      }}
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
-                    {/* Sadece yöneticiler durum değiştirme butonunu görebilir */}
-                    {userRole === 'Yonetici' && (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color={report.status === 'Reviewed' ? 'success' : 'primary'}
-                        onClick={() => handleStatusChange(
-                          report.id,
-                          report.status === 'Reviewed' ? 'Not Reviewed' : 'Reviewed'
-                        )}
-                        style={{ marginLeft: 8 }}
-                      >
-                        {report.status === 'Reviewed' ? 'İncelenmedi Yap' : 'İncelendi Yap'}
-                      </Button>
-                    )}
-                    <IconButton
-                      onClick={() => handleDelete(report.id)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Dialog open={detailModalOpen} onClose={() => setDetailModalOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Rapor Detayları</DialogTitle>
-        {selectedReport && (
-          <DialogContent>
-            <Typography variant="subtitle1" gutterBottom>
-              <strong>Çalışan:</strong> {selectedReport.uploader_first_name && selectedReport.uploader_last_name 
-                ? `${selectedReport.uploader_first_name} ${selectedReport.uploader_last_name}`
-                : 'Bilinmeyen Kullanıcı'}
-            </Typography>
-            <Typography variant="subtitle1" gutterBottom>
-              <strong>Tarih:</strong> {parseUTCDate(selectedReport.created_at).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
-            </Typography>
-            <Typography variant="subtitle1" gutterBottom>
-              <strong>Durum:</strong> <Chip label={selectedReport.status === 'Reviewed' ? 'İncelendi' : 'İncelenmedi'} color={selectedReport.status === 'Reviewed' ? 'success' : 'primary'} size="small" />
-            </Typography>
-            <Typography variant="subtitle1" gutterBottom>
-              <strong>Notlar:</strong> {selectedReport.notes || 'Not eklenmemiş'}
-            </Typography>
-            {selectedReport.file_path && (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={async () => {
-                  const { data } = await supabase.storage
-                    .from('reports')
-                    .createSignedUrl(selectedReport.file_path, 60);
-                  if (data?.signedUrl) {
-                    window.open(data.signedUrl, '_blank');
-                  }
-                }}
-                style={{ marginTop: 16 }}
+      {/* Filtreler */}
+      <Card sx={{ 
+        mb: 3, 
+        p: 3,
+        backgroundColor: '#FFFFFF',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        borderRadius: 2
+      }}>
+        <Typography variant="h6" sx={{ 
+          mb: 2,
+          fontWeight: 600,
+          color: '#1C1F2A'
+        }}>
+          Filtreler
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <TextField
+            type="date"
+            label="Tarihe Göre Filtrele"
+            value={filters.date || ''}
+            onChange={(e) => handleFilterChange('date', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 200 }}
+          />
+          <TextField
+            select
+            label="Durum"
+            value={filters.status || ''}
+            onChange={(e) => handleFilterChange('status', e.target.value)}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="">Tüm Durumlar</MenuItem>
+            <MenuItem value="Not Reviewed">İncelenmedi</MenuItem>
+            <MenuItem value="Reviewed">İncelendi</MenuItem>
+          </TextField>
+          {!hideUploaderFilter && (
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Çalışan</InputLabel>
+              <Select
+                value={filters.uploaderId || ''}
+                label="Çalışan"
+                onChange={(e) => handleFilterChange('uploaderId', e.target.value)}
               >
-                Raporu İndir
-              </Button>
-            )}
+                <MenuItem value="">Tüm Çalışanlar</MenuItem>
+                {uniqueUploaders.map((uploader) => (
+                  <MenuItem key={uploader.id} value={uploader.id}>
+                    {uploader.fullName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </Box>
+      </Card>
+
+      {/* Tablo */}
+      <Card sx={{ 
+        backgroundColor: '#FFFFFF',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        borderRadius: 3,
+        overflow: 'hidden'
+      }}>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: '#F8F9FA' }}>
+                <TableCell sx={{ 
+                  fontWeight: 600,
+                  color: '#1C1F2A',
+                  fontSize: '14px',
+                  py: 2
+                }}>
+                  Çalışan
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600,
+                  color: '#1C1F2A',
+                  fontSize: '14px',
+                  py: 2
+                }}>
+                  Tarih/Saat
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600,
+                  color: '#1C1F2A',
+                  fontSize: '14px',
+                  py: 2
+                }}>
+                  Durum
+                </TableCell>
+                <TableCell align="right" sx={{ 
+                  fontWeight: 600,
+                  color: '#1C1F2A',
+                  fontSize: '14px',
+                  py: 2
+                }}>
+                  İşlemler
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredReports.map((report) => (
+                  <TableRow key={report.id} sx={{ 
+                    '&:hover': {
+                      backgroundColor: '#F8FFF8'
+                    }
+                  }}>
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#1C1F2A' }}>
+                        {report.uploader_first_name && report.uploader_last_name 
+                          ? `${report.uploader_first_name} ${report.uploader_last_name}`
+                          : 'Bilinmeyen Kullanıcı'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" sx={{ color: '#666666' }}>
+                        {parseUTCDate(report.created_at).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      <Chip 
+                        label={report.status === 'Reviewed' ? 'İncelendi' : 'İncelenmedi'}
+                        color={report.status === 'Reviewed' ? 'success' : 'warning'}
+                        size="small"
+                        sx={{ 
+                          fontWeight: 500,
+                          fontSize: '12px'
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ py: 2 }}>
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                        <IconButton
+                          onClick={() => {
+                            setSelectedReport(report);
+                            setDetailModalOpen(true);
+                          }}
+                          sx={{ 
+                            color: '#3C8D40',
+                            '&:hover': { backgroundColor: '#E8F5E8' }
+                          }}
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                        {/* Sadece yöneticiler durum değiştirme butonunu görebilir */}
+                        {userRole === 'Yonetici' && (
+                          <Box
+                            onClick={() => handleStatusChange(
+                              report.id,
+                              report.status === 'Reviewed' ? 'Not Reviewed' : 'Reviewed'
+                            )}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.3s ease',
+                              '&:hover': {
+                                transform: 'scale(1.1)'
+                              }
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                color: report.status === 'Reviewed' ? '#FF9800' : '#4CAF50',
+                                fontSize: '20px',
+                                fontWeight: 'bold',
+                                lineHeight: 1
+                              }}
+                            >
+                              {report.status === 'Reviewed' ? '↺' : '✓'}
+                            </Typography>
+                          </Box>
+                        )}
+                        <IconButton
+                          onClick={() => handleDelete(report.id)}
+                          sx={{ 
+                            color: '#F44336',
+                            '&:hover': { backgroundColor: '#FFEBEE' }
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Card>
+
+      {/* Detay Modal */}
+      <Dialog open={detailModalOpen} onClose={() => setDetailModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ 
+          backgroundColor: '#F8F9FA',
+          borderBottom: '1px solid #E0E0E0'
+        }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1C1F2A' }}>
+            Rapor Detayları
+          </Typography>
+        </DialogTitle>
+        {selectedReport && (
+          <DialogContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1C1F2A', mb: 0.5 }}>
+                  Çalışan:
+                </Typography>
+                <Typography variant="body1">
+                  {selectedReport.uploader_first_name && selectedReport.uploader_last_name 
+                    ? `${selectedReport.uploader_first_name} ${selectedReport.uploader_last_name}`
+                    : 'Bilinmeyen Kullanıcı'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1C1F2A', mb: 0.5 }}>
+                  Tarih:
+                </Typography>
+                <Typography variant="body1">
+                  {parseUTCDate(selectedReport.created_at).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1C1F2A', mb: 0.5 }}>
+                  Durum:
+                </Typography>
+                <Chip 
+                  label={selectedReport.status === 'Reviewed' ? 'İncelendi' : 'İncelenmedi'} 
+                  color={selectedReport.status === 'Reviewed' ? 'success' : 'warning'} 
+                  size="small" 
+                />
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1C1F2A', mb: 0.5 }}>
+                  Notlar:
+                </Typography>
+                <Typography variant="body1">
+                  {selectedReport.notes || 'Not eklenmemiş'}
+                </Typography>
+              </Box>
+              {selectedReport.file_path && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={async () => {
+                    const { data } = await supabase.storage
+                      .from('reports')
+                      .createSignedUrl(selectedReport.file_path, 60);
+                    if (data?.signedUrl) {
+                      window.open(data.signedUrl, '_blank');
+                    }
+                  }}
+                  sx={{ 
+                    mt: 2,
+                    backgroundColor: '#3C8D40',
+                    '&:hover': { backgroundColor: '#2E7D32' }
+                  }}
+                >
+                  Raporu İndir
+                </Button>
+              )}
+            </Box>
           </DialogContent>
         )}
-        <DialogActions>
-          <Button onClick={() => setDetailModalOpen(false)}>Kapat</Button>
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #E0E0E0' }}>
+          <Button 
+            onClick={() => setDetailModalOpen(false)}
+            sx={{ 
+              color: '#666666',
+              '&:hover': { backgroundColor: '#F5F5F5' }
+            }}
+          >
+            Kapat
+          </Button>
         </DialogActions>
       </Dialog>
     </>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Grid, Typography } from '@mui/material';
+import { Container, Grid, Typography, Box } from '@mui/material';
 import ReportsTable from '../components/ReportsTable';
 import UploadReportCard from '../components/UploadReportCard';
 import { getAllReports, updateReportStatus, deleteReport } from '../services/reportService';
@@ -102,31 +102,44 @@ export default function DashboardPage() {
   if (!user || !userRole) return null;
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        {userRole === 'Calisan' ? 'Raporlarım' : 'Tüm Raporlar'}
-      </Typography>
-      
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <UploadReportCard onUploadSuccess={handleUploadSuccess} />
-        </Grid>
+    <Box sx={{ 
+      backgroundColor: '#F5F5F5',
+      minHeight: '100vh',
+      py: 4
+    }}>
+      <Container maxWidth="xl">
+        <Grid container spacing={4}>
+          {/* Rapor Yükleme Kartı */}
+          <Grid item xs={12}>
+            <UploadReportCard onUploadSuccess={handleUploadSuccess} />
+          </Grid>
 
-        <Grid item xs={12}>
-          {loading ? (
-            <Typography>Yükleniyor...</Typography>
-          ) : (
-            <ReportsTable
-              reports={filteredReports}
-              allReports={reports} // Filtrelenmemiş tüm raporları geçir
-              filters={filters}
-              setFilters={setFilters}
-              onReportUpdated={handleReportUpdated}
-              hideUploaderFilter={userRole === 'Calisan'} // Çalışan ise yükleyici filtresini gizle
-            />
-          )}
+          {/* Raporlar Tablosu */}
+          <Grid item xs={12}>
+            {loading ? (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                py: 8
+              }}>
+                <Typography variant="h6" sx={{ color: '#666666' }}>
+                  Raporlar yükleniyor...
+                </Typography>
+              </Box>
+            ) : (
+              <ReportsTable
+                reports={filteredReports}
+                allReports={reports}
+                filters={filters}
+                setFilters={setFilters}
+                onReportUpdated={handleReportUpdated}
+                hideUploaderFilter={userRole === 'Calisan'}
+              />
+            )}
+          </Grid>
         </Grid>
-      </Grid>
-    </Container>
+      </Container>
+    </Box>
   );
 } 

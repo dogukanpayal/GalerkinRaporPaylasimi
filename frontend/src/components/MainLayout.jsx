@@ -29,19 +29,18 @@ export default function MainLayout() {
           flexGrow: 1,
           display: 'flex',
           flexDirection: 'column',
-          width: { sm: `calc(100% - 220px)` }, // Adjust width for sidebar
+          width: { sm: `calc(100% - 280px)` }, // Adjust width for sidebar
+          backgroundColor: '#F5F5F5'
         }}
       >
         <Header title={selectedMenu} />
         <Box
           sx={{
-            p: 3,
             flexGrow: 1,
-            bgcolor: '#f5f5f5',
             overflowY: 'auto',
           }}
         >
-          <Outlet /> {/* This is where the page content (e.g., DashboardPage, SettingsPage) will be rendered */}
+          <Outlet />
         </Box>
       </Box>
     </Box>
