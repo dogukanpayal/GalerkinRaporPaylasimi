@@ -83,14 +83,29 @@ export default function DashboardPage() {
   // Rapor güncelleme işleyicisi
   const handleReportUpdated = async (reportId, newStatus, isDelete = false) => {
     try {
+      // Önce local state'i güncelle (anında görünüm için)
+      setReports(prevReports => {
+        if (isDelete) {
+          return prevReports.filter(report => report.id !== reportId);
+        } else {
+          return prevReports.map(report => 
+            report.id === reportId 
+              ? { ...report, status: newStatus }
+              : report
+          );
+        }
+      });
+
+      // Sonra backend'e gönder
       if (isDelete) {
         await deleteReport(reportId);
       } else {
         await updateReportStatus(reportId, newStatus);
       }
-      await fetchReports();
     } catch (error) {
       console.error('Error updating report:', error);
+      // Hata durumunda listeyi yeniden yükle
+      fetchReports();
     }
   };
 
